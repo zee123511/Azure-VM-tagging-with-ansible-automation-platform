@@ -1,0 +1,40 @@
+---
+- name: Manage Azure VM Tags
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    azure_client_id: "{{ lookup('env', 'AZURE_CLIENT_ID') }}"
+    azure_client_secret: "{{ lookup('env', 'AZURE_SECRET') }}"
+    azure_tenant_id: "{{ lookup('env', 'AZURE_TENANT') }}"
+    subscription_id: "{{ subscription_id }}"
+    vm_list: "{{ VM_LIST }}"
+    vm_tags: "{{ az_tags }}"
+
+  tasks:
+    - name: Log in to Azure
+      shell: |
+        az login --service-principal --username "{{ azure_client_id }}" --password "{{ azure_client_secret }}" --tenant "{{ azure_tenant_id }}"
+      register: azure_login
+      no_log: yes
+
+    - name: Tag VMs from provided list with specified tags
+      az_manage_tags:
+        subscription_name: "{{ subscription_id }}"
+        resource_name: "{{ item.0 }}"
+        tag_key: "{{ item.1.key }}"
+        tag_value: "{{ item.1.value }}"
+      register: vm_tagging_results
+      loop: "{{ vm_list | product(vm_tags) | list }}"
+      loop_control:
+        label: "VM: {{ item.0 }} | Tag: {{ item.1.key }}={{ item.1.value }}"
+
+    - name: Display VM tagging results
+      debug:
+        msg: |
+          VM: {{ item.item.0 }}
+          Tag: {{ item.item.1.key }}={{ item.item.1.value }}
+          Changed: {{ item.changed }}
+          Message: {{ item.msg }}
+          Stats: {{ item.stats }}
+      loop: "{{ vm_tagging_results.results }}"
+      when: vm_tagging_results is defined
